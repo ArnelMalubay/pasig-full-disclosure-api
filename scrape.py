@@ -79,3 +79,68 @@ def update_if_needed(path, refresh_timer = timedelta(days = 1)):
         update_time(path)
     return
 
+
+
+def get_resolutions(start_year, end_year, query = None, num_results = None):
+    # update_if_needed("resolutions")
+    with open("htmls/resolutions.html", "r", encoding = "utf-8") as f:
+        soup = BeautifulSoup(f, "lxml")
+    
+    # Filter and extract across all years
+    results = []
+    
+    # Loop through years from start_year to end_year (inclusive, descending)
+    for year in range(start_year, end_year + 1):
+        # Check if we've reached the desired number of results
+        if num_results is not None and len(results) >= num_results:
+            break
+        
+        # Find the section for this year
+        id_to_use = f"cr-collapseOne-{year}"
+        year_soup = soup.find(id = id_to_use)
+        if year_soup is None:
+            continue  # Skip this year if not found
+        
+        all_trs = year_soup.find_all('tr')
+        
+        # Process rows for this year
+        for tr in all_trs:
+            # Check if we've reached the desired number of results
+            if num_results is not None and len(results) >= num_results:
+                break
+            
+            a_tag = tr.find('a')
+            if not a_tag:  # Skip if no 'a' tag
+                continue
+            
+            # Extract title first to check query
+            title = a_tag.get_text(strip = True)
+            
+            # Filter by query if provided
+            if query is not None and query.lower() not in title.lower():
+                continue
+            
+            # Extract remaining data (all Tag methods, no re-parsing needed)
+            tds = tr.find_all('td')
+            data = {
+                'href': a_tag.get('href'),
+                'uuid': a_tag.get('data-uuid'),
+                'title': title,
+                'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
+                'year': year
+            }
+            results.append(data)
+    
+    return results
+
+# Test the function
+resolutions = get_resolutions(2020, 2025, query = 'Rosario', num_results = 2)
+print(f"Total resolutions: {len(resolutions)}")
+print('-' * 100)
+for resolution in resolutions:
+    print(f"Year: {resolution['year']}")
+    print(f"Title: {resolution['title']}")
+    print(f"PDF Link: {resolution['href']}")
+    print(f"UUID: {resolution['uuid']}")
+    print(f"Views: {resolution['views']}")
+    print('-' * 100)
