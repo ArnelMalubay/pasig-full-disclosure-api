@@ -82,7 +82,7 @@ def update_if_needed(path, refresh_timer = timedelta(days = 1)):
 
 
 def get_resolutions(start_year, end_year, query = None, num_results = None):
-    # update_if_needed("resolutions")
+    update_if_needed("resolutions")
     with open("htmls/resolutions.html", "r", encoding = "utf-8") as f:
         soup = BeautifulSoup(f, "lxml")
     
@@ -123,24 +123,131 @@ def get_resolutions(start_year, end_year, query = None, num_results = None):
             # Extract remaining data (all Tag methods, no re-parsing needed)
             tds = tr.find_all('td')
             data = {
-                'href': a_tag.get('href'),
-                'uuid': a_tag.get('data-uuid'),
+                'year': year,
                 'title': title,
+                'link': a_tag.get('href'),
+                'uuid': a_tag.get('data-uuid'),
                 'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
-                'year': year
             }
             results.append(data)
-    
-    return results
+    last_updated = get_time("resolutions")
+    return {
+        "num_results": len(results),
+        "last_updated": last_updated,
+        "results": results,
+    }
 
-# Test the function
-resolutions = get_resolutions(2020, 2025, query = 'Rosario', num_results = 2)
-print(f"Total resolutions: {len(resolutions)}")
-print('-' * 100)
-for resolution in resolutions:
-    print(f"Year: {resolution['year']}")
-    print(f"Title: {resolution['title']}")
-    print(f"PDF Link: {resolution['href']}")
-    print(f"UUID: {resolution['uuid']}")
-    print(f"Views: {resolution['views']}")
-    print('-' * 100)
+def get_ordinances(start_year, end_year, query = None, num_results = None):
+    update_if_needed("ordinances")
+    with open("htmls/ordinances.html", "r", encoding = "utf-8") as f:
+        soup = BeautifulSoup(f, "lxml")
+    
+    # Filter and extract across all years
+    results = []
+    
+    # Loop through years from start_year to end_year (inclusive, descending)
+    for year in range(start_year, end_year + 1):
+        # Check if we've reached the desired number of results
+        if num_results is not None and len(results) >= num_results:
+            break
+        
+        # Find the section for this year
+        id_to_use = f"co-collapseTwo-{year}"
+        year_soup = soup.find(id = id_to_use)
+        if year_soup is None:
+            continue  # Skip this year if not found
+        
+        all_trs = year_soup.find_all('tr')
+        
+        # Process rows for this year
+        for tr in all_trs:
+            # Check if we've reached the desired number of results
+            if num_results is not None and len(results) >= num_results:
+                break
+            
+            a_tag = tr.find('a')
+            if not a_tag:  # Skip if no 'a' tag
+                continue
+            
+            # Extract title first to check query
+            title = a_tag.get_text(strip = True)
+            
+            # Filter by query if provided
+            if query is not None and query.lower() not in title.lower():
+                continue
+            
+            # Extract remaining data (all Tag methods, no re-parsing needed)
+            tds = tr.find_all('td')
+            data = {
+                'year': year,
+                'title': title,
+                'link': a_tag.get('href'),
+                'uuid': a_tag.get('data-uuid'),
+                'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
+            }
+            results.append(data)
+    last_updated = get_time("ordinances")
+    return {
+        "num_results": len(results),
+        "last_updated": last_updated,
+        "results": results,
+    }
+
+def get_executive_orders(start_year, end_year, query = None, num_results = None):
+    update_if_needed("executive-orders")
+    with open("htmls/executive-orders.html", "r", encoding = "utf-8") as f:
+        soup = BeautifulSoup(f, "lxml")
+    
+    headers = soup.find_all(class_ = "card-header")
+    # Filter and extract across all years
+    results = []
+    
+    # Loop through years from start_year to end_year (inclusive, descending)
+    for year in range(start_year, end_year + 1):
+        # Check if we've reached the desired number of results
+        if num_results is not None and len(results) >= num_results:
+            break
+        
+        # Find the section for this year
+        year_header = [header for header in headers if str(year) in header.find('h2').string]
+        if len(year_header) == 0:
+            continue  # Skip this year if not found
+        
+        year_soup = year_header[0].next_sibling.next_sibling
+        all_trs = year_soup.find_all('tr')
+        
+        # Process rows for this year
+        for tr in all_trs:
+            # Check if we've reached the desired number of results
+            if num_results is not None and len(results) >= num_results:
+                break
+            
+            a_tag = tr.find('a')
+            if not a_tag:  # Skip if no 'a' tag
+                continue
+            
+            # Extract title first to check query
+            title = a_tag.get_text(strip = True)
+            
+            # Filter by query if provided
+            if query is not None and query.lower() not in title.lower():
+                continue
+            
+            # Extract remaining data (all Tag methods, no re-parsing needed)
+            tds = tr.find_all('td')
+            data = {
+                'year': year,
+                'title': title,
+                'link': a_tag.get('href'),
+                'uuid': a_tag.get('data-uuid'),
+                'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
+            }
+            results.append(data)
+    last_updated = get_time("executive-orders")
+    return {
+        "num_results": len(results),
+        "last_updated": last_updated,
+        "results": results,
+    }
+
+print(get_executive_orders(2000, 2025, 'Climate'))
