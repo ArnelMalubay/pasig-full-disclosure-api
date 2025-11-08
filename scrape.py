@@ -250,4 +250,22 @@ def get_executive_orders(start_year, end_year, query = None, num_results = None)
         "results": results,
     }
 
-print(get_executive_orders(2000, 2025, 'Climate'))
+path_to_title = {"annual-procurement-plan" : "Annual Procurement Plan",
+                 "procurement-monitoring-report" : "Procurement Monitoring Report",
+                 "bid-bulletin" : "Bid Bulletin",
+                 "invitation-to-bid" : "Invitation to Bid",
+                 "request-for-quotation" : "Request for Quotation",
+                 "notice-of-awards" : "Notice of Awards",
+                 "notice-to-proceed" : "Notice to Proceed",
+                 "purchase-order-of-contract" : "Purchase Order of Contract"}
+
+with open("htmls/bids-and-awards.html", "r", encoding = "utf-8") as f:
+    soup = BeautifulSoup(f, "lxml")
+
+print('-' * 100)
+headers = soup.find_all(class_ = "col-md-12 text-center")
+for header in headers:
+    trs = header.next_sibling.next_sibling.find_all('li')
+    print(f'{header.h1.string}: {len(trs)}')
+    print('-' * 100)
+    
