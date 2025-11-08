@@ -2,6 +2,7 @@
 A free-to-use API to get data on Pasig City's ordinances, resolutions, etc.
 
 # TO DO:
-- add bid and awards get function
-- create a more general function for the get functions to make it more modular
 - use async and depends
+- if start_year > end_year, then the index should be -1; if end_year is None but start_year is not, end_year = start_year and vice-versa; if both are none, returns everything
+- better to use li instead of tr to make it more general (includes other notices; doesn't require filtering a-href tags)
+- separate function for bids-and-awards, separate function to handle all of eo, ordinances, and resolutions
