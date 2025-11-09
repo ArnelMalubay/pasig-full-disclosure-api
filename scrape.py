@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 import os
 from datetime import datetime, timezone, timedelta
 
+from requests.compat import numeric_types
+
 
 path_to_url = {"resolutions" : "https://pasigcity.gov.ph/city-resolutions", 
                "ordinances" : "https://pasigcity.gov.ph/city-ordinances", 
@@ -257,15 +259,103 @@ path_to_title = {"annual-procurement-plan" : "Annual Procurement Plan",
                  "request-for-quotation" : "Request for Quotation",
                  "notice-of-awards" : "Notice of Awards",
                  "notice-to-proceed" : "Notice to Proceed",
-                 "purchase-order-of-contract" : "Purchase Order of Contract"}
+                 "purchase-order-of-contract" : "Purchase Order of Contract",
+                 "other-notices" : "Other Notices"}
 
-with open("htmls/bids-and-awards.html", "r", encoding = "utf-8") as f:
-    soup = BeautifulSoup(f, "lxml")
 
-print('-' * 100)
-headers = soup.find_all(class_ = "col-md-12 text-center")
-for header in headers:
-    trs = header.next_sibling.next_sibling.find_all('li')
-    print(f'{header.h1.string}: {len(trs)}')
-    print('-' * 100)
-    
+def get_bids_and_awards(category, query = None, num_results = None):
+    update_if_needed("bids-and-awards")
+    with open("htmls/bids-and-awards.html", "r", encoding = "utf-8") as f:
+        soup = BeautifulSoup(f, "lxml")
+    path = path_to_title[category]
+    headers = soup.find_all(class_ = "col-md-12 text-center")
+    for header in headers:
+        if header.h1.string == path:
+            trs = header.next_sibling.next_sibling.find_all('tr')
+            break 
+    results = []
+    for tr in trs:
+        # Check if we've reached the desired number of results
+        if num_results is not None and len(results) >= num_results:
+            break
+            
+        a_tag = tr.find('a')
+        if not a_tag:  # Skip if no 'a' tag
+            continue
+            
+        # Extract title first to check query
+        title = a_tag.get_text(strip = True)
+            
+        # Filter by query if provided
+        if query is not None and query.lower() not in title.lower():
+            continue
+            
+        # Extract remaining data (all Tag methods, no re-parsing needed)
+        tds = tr.find_all('td')
+        data = {
+            'title': title,
+            'link': a_tag.get('href'),
+            'uuid': a_tag.get('data-uuid'),
+            'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
+            }
+        results.append(data)
+
+    last_updated = get_time("bids-and-awards")
+    return {
+        "num_results": len(results),
+        "last_updated": last_updated,
+        "category": category,
+        "results": results,
+    }
+
+
+def get_other_notices(query = None, num_results = None):
+    update_if_needed("bids-and-awards")
+    with open("htmls/bids-and-awards.html", "r", encoding = "utf-8") as f:
+        soup = BeautifulSoup(f, "lxml")
+    headers = soup.find_all(class_ = "col-md-12 text-center")
+    for header in headers:
+        if header.h1.string == 'Other Notices':
+            trs = header.next_sibling.next_sibling.find_all('li')
+            break 
+    results = []
+    for tr in trs:
+        # Check if we've reached the desired number of results
+        if num_results is not None and len(results) >= num_results:
+            break
+            
+        a_tag = tr.find('a')
+        if not a_tag:  # Skip if no 'a' tag
+            continue
+            
+        # Extract title first to check query
+        title = a_tag.get_text(strip = True)
+            
+        # Filter by query if provided
+        if query is not None and query.lower() not in title.lower():
+            continue
+            
+        # Extract remaining data (all Tag methods, no re-parsing needed)
+        tds = tr.find_all('td')
+        data = {
+            'title': title,
+            'link': a_tag.get('href'),
+            'uuid': a_tag.get('data-uuid'),
+            'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
+            }
+        results.append(data)
+
+    last_updated = get_time("bids-and-awards")
+    return {
+        "num_results": len(results),
+        "last_updated": last_updated,
+        "results": results,
+    }
+
+
+
+results = get_other_notices()
+print(results["num_results"])
+print(results["last_updated"])
+print(results["results"][0])
+print(results["results"][-1])
