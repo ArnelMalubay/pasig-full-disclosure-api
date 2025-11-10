@@ -3,8 +3,6 @@ from bs4 import BeautifulSoup
 import os
 from datetime import datetime, timezone, timedelta
 
-from requests.compat import numeric_types
-
 
 path_to_url = {"resolutions" : "https://pasigcity.gov.ph/city-resolutions", 
                "ordinances" : "https://pasigcity.gov.ph/city-ordinances", 
@@ -82,134 +80,17 @@ def update_if_needed(path, refresh_timer = timedelta(days = 1)):
     return
 
 
-
-def get_resolutions(start_year, end_year, query = None, num_results = None):
-    update_if_needed("resolutions")
-    with open("htmls/resolutions.html", "r", encoding = "utf-8") as f:
-        soup = BeautifulSoup(f, "lxml")
-    
-    # Filter and extract across all years
-    results = []
-    
-    # Loop through years from start_year to end_year (inclusive, descending)
-    for year in range(start_year, end_year + 1):
-        # Check if we've reached the desired number of results
-        if num_results is not None and len(results) >= num_results:
-            break
-        
-        # Find the section for this year
-        id_to_use = f"cr-collapseOne-{year}"
-        year_soup = soup.find(id = id_to_use)
-        if year_soup is None:
-            continue  # Skip this year if not found
-        
-        all_trs = year_soup.find_all('tr')
-        
-        # Process rows for this year
-        for tr in all_trs:
-            # Check if we've reached the desired number of results
-            if num_results is not None and len(results) >= num_results:
-                break
-            
-            a_tag = tr.find('a')
-            if not a_tag:  # Skip if no 'a' tag
-                continue
-            
-            # Extract title first to check query
-            title = a_tag.get_text(strip = True)
-            
-            # Filter by query if provided
-            if query is not None and query.lower() not in title.lower():
-                continue
-            
-            # Extract remaining data (all Tag methods, no re-parsing needed)
-            tds = tr.find_all('td')
-            data = {
-                'year': year,
-                'title': title,
-                'link': a_tag.get('href'),
-                'uuid': a_tag.get('data-uuid'),
-                'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
-            }
-            results.append(data)
-    last_updated = get_time("resolutions")
-    return {
-        "num_results": len(results),
-        "last_updated": last_updated,
-        "results": results,
-    }
-
-def get_ordinances(start_year, end_year, query = None, num_results = None):
-    update_if_needed("ordinances")
-    with open("htmls/ordinances.html", "r", encoding = "utf-8") as f:
-        soup = BeautifulSoup(f, "lxml")
-    
-    # Filter and extract across all years
-    results = []
-    
-    # Loop through years from start_year to end_year (inclusive, descending)
-    for year in range(start_year, end_year + 1):
-        # Check if we've reached the desired number of results
-        if num_results is not None and len(results) >= num_results:
-            break
-        
-        # Find the section for this year
-        id_to_use = f"co-collapseTwo-{year}"
-        year_soup = soup.find(id = id_to_use)
-        if year_soup is None:
-            continue  # Skip this year if not found
-        
-        all_trs = year_soup.find_all('tr')
-        
-        # Process rows for this year
-        for tr in all_trs:
-            # Check if we've reached the desired number of results
-            if num_results is not None and len(results) >= num_results:
-                break
-            
-            a_tag = tr.find('a')
-            if not a_tag:  # Skip if no 'a' tag
-                continue
-            
-            # Extract title first to check query
-            title = a_tag.get_text(strip = True)
-            
-            # Filter by query if provided
-            if query is not None and query.lower() not in title.lower():
-                continue
-            
-            # Extract remaining data (all Tag methods, no re-parsing needed)
-            tds = tr.find_all('td')
-            data = {
-                'year': year,
-                'title': title,
-                'link': a_tag.get('href'),
-                'uuid': a_tag.get('data-uuid'),
-                'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
-            }
-            results.append(data)
-    last_updated = get_time("ordinances")
-    return {
-        "num_results": len(results),
-        "last_updated": last_updated,
-        "results": results,
-    }
-
-def get_executive_orders(start_year, end_year, query = None, num_results = None):
-    update_if_needed("executive-orders")
-    with open("htmls/executive-orders.html", "r", encoding = "utf-8") as f:
+def get_data(path, start_year = 2000, end_year = 2025, query = None, skip = 0, top = 500):
+    update_if_needed(path)
+    with open(f"htmls/{path}.html", "r", encoding = "utf-8") as f:
         soup = BeautifulSoup(f, "lxml")
     
     headers = soup.find_all(class_ = "card-header")
-    # Filter and extract across all years
-    results = []
+    # Filter and extract across all years - collect ALL results first
+    all_results = []
     
-    # Loop through years from start_year to end_year (inclusive, descending)
+    # Loop through years from start_year to end_year (inclusive)
     for year in range(start_year, end_year + 1):
-        # Check if we've reached the desired number of results
-        if num_results is not None and len(results) >= num_results:
-            break
-        
         # Find the section for this year
         year_header = [header for header in headers if str(year) in header.find('h2').string]
         if len(year_header) == 0:
@@ -220,10 +101,6 @@ def get_executive_orders(start_year, end_year, query = None, num_results = None)
         
         # Process rows for this year
         for tr in all_trs:
-            # Check if we've reached the desired number of results
-            if num_results is not None and len(results) >= num_results:
-                break
-            
             a_tag = tr.find('a')
             if not a_tag:  # Skip if no 'a' tag
                 continue
@@ -244,12 +121,20 @@ def get_executive_orders(start_year, end_year, query = None, num_results = None)
                 'uuid': a_tag.get('data-uuid'),
                 'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
             }
-            results.append(data)
-    last_updated = get_time("executive-orders")
+            all_results.append(data)
+    
+    # Apply pagination: skip and top
+    total_count = len(all_results)
+    paginated_results = all_results[skip:skip + top]
+    
+    last_updated = get_time(path)
     return {
-        "num_results": len(results),
+        "num_results": total_count,
+        "skip": skip,
+        "top": top,
+        "returned_results": len(paginated_results),
         "last_updated": last_updated,
-        "results": results,
+        "results": paginated_results,
     }
 
 path_to_title = {"annual-procurement-plan" : "Annual Procurement Plan",
@@ -263,22 +148,21 @@ path_to_title = {"annual-procurement-plan" : "Annual Procurement Plan",
                  "other-notices" : "Other Notices"}
 
 
-def get_bids_and_awards(category, query = None, num_results = None):
+def get_bids_and_awards(category, query = None, skip = 0, top = 500):
     update_if_needed("bids-and-awards")
     with open("htmls/bids-and-awards.html", "r", encoding = "utf-8") as f:
         soup = BeautifulSoup(f, "lxml")
     path = path_to_title[category]
+    tag_to_use = 'li' if category == 'other-notices' else 'tr'
     headers = soup.find_all(class_ = "col-md-12 text-center")
     for header in headers:
         if header.h1.string == path:
-            trs = header.next_sibling.next_sibling.find_all('tr')
-            break 
-    results = []
-    for tr in trs:
-        # Check if we've reached the desired number of results
-        if num_results is not None and len(results) >= num_results:
+            trs = header.next_sibling.next_sibling.find_all(tag_to_use)
             break
-            
+    
+    # Collect all results first
+    all_results = []
+    for tr in trs:
         a_tag = tr.find('a')
         if not a_tag:  # Skip if no 'a' tag
             continue
@@ -297,65 +181,30 @@ def get_bids_and_awards(category, query = None, num_results = None):
             'link': a_tag.get('href'),
             'uuid': a_tag.get('data-uuid'),
             'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
-            }
-        results.append(data)
+        }
+        all_results.append(data)
+    
+    # Apply pagination
+    total_count = len(all_results)
+    paginated_results = all_results[skip:skip + top]
 
     last_updated = get_time("bids-and-awards")
     return {
-        "num_results": len(results),
+        "num_results": total_count,
+        "skip": skip,
+        "top": top,
+        "returned_results": len(paginated_results),
         "last_updated": last_updated,
         "category": category,
-        "results": results,
+        "results": paginated_results,
     }
 
-
-def get_other_notices(query = None, num_results = None):
-    update_if_needed("bids-and-awards")
-    with open("htmls/bids-and-awards.html", "r", encoding = "utf-8") as f:
-        soup = BeautifulSoup(f, "lxml")
-    headers = soup.find_all(class_ = "col-md-12 text-center")
-    for header in headers:
-        if header.h1.string == 'Other Notices':
-            trs = header.next_sibling.next_sibling.find_all('li')
-            break 
-    results = []
-    for tr in trs:
-        # Check if we've reached the desired number of results
-        if num_results is not None and len(results) >= num_results:
-            break
-            
-        a_tag = tr.find('a')
-        if not a_tag:  # Skip if no 'a' tag
-            continue
-            
-        # Extract title first to check query
-        title = a_tag.get_text(strip = True)
-            
-        # Filter by query if provided
-        if query is not None and query.lower() not in title.lower():
-            continue
-            
-        # Extract remaining data (all Tag methods, no re-parsing needed)
-        tds = tr.find_all('td')
-        data = {
-            'title': title,
-            'link': a_tag.get('href'),
-            'uuid': a_tag.get('data-uuid'),
-            'views': tds[1].get_text(strip = True) if len(tds) > 1 else None,
-            }
-        results.append(data)
-
-    last_updated = get_time("bids-and-awards")
-    return {
-        "num_results": len(results),
-        "last_updated": last_updated,
-        "results": results,
-    }
-
-
-
-results = get_other_notices()
-print(results["num_results"])
-print(results["last_updated"])
-print(results["results"][0])
-print(results["results"][-1])
+results = get_bids_and_awards("other-notices", query = 'pasig lgu')
+print(f"Total matching results: {results['num_results']}")
+print(f"Skip: {results['skip']}, Top: {results['top']}")
+print(f"Returned: {len(results['results'])} results")
+print(f"Last updated: {results['last_updated']}")
+print('-' * 100)
+if len(results['results']) > 0:
+    print(f"First result: {results['results'][0]}")
+    print(f"Last result: {results['results'][-1]}")
