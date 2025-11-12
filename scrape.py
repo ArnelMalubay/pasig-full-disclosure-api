@@ -57,15 +57,47 @@ path_to_title: Dict[str, str] = {
 @app.get(
     "/{path}",
     summary = "Get documents by path and year range",
-    response_description = "List of documents with pagination metadata"
+    response_description = "List of documents with pagination metadata",
+    responses = {
+        200: {
+            "description": "Successful response",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "num_results": 2,
+                        "skip": 0,
+                        "top": 500,
+                        "returned_results": 2,
+                        "last_updated": "2025-11-12T14:30:45.123456+08:00",
+                        "results": [
+                            {
+                                "year": 2024,
+                                "title": "Resolution No. 123 Series Of 2024: Resolution for Rosario Brgy. Hall Renovation",
+                                "link": "https://assets.pasigcity.gov.ph/storage/resolution.pdf",
+                                "uuid": "abc123-def456-ghi789",
+                                "views": "150"
+                            },
+                            {
+                                "year": 2023,
+                                "title": "Resolution No. 456 Series Of 2023: Resolution for Rosario Festival Celebration",
+                                "link": "https://assets.pasigcity.gov.ph/storage/resolution2.pdf",
+                                "uuid": "xyz789-uvw456-rst123",
+                                "views": "203"
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
 )
 async def get_data(
-    path: str = Path(..., description = "Document type (resolutions, ordinances, executive-orders)"),
-    start_year: int = Query(2000, ge = 2000, le = 2100, description = "Starting year for document search"),
-    end_year: Optional[int] = Query(None, ge = 2000, le = 2100, description = "Ending year for document search (defaults to current year)"),
-    query: Optional[str] = Query(None, description = "Search query to filter documents by title"),
-    skip: int = Query(0, ge = 0, description = "Number of results to skip for pagination"),
-    top: int = Query(500, ge = 1, le = 1000, description = "Maximum number of results to return")
+    path: str = Path(..., description = "Document type (resolutions, ordinances, executive-orders)", example = "resolutions"),
+    start_year: Optional[int] = Query(2000, ge = 2000, le = 2100, description = "Starting year for document search", example = 2023),
+    end_year: Optional[int] = Query(None, ge = 2000, le = 2100, description = "Ending year for document search (defaults to current year)", example = 2024),
+    query: Optional[str] = Query(None, description = "Search query to filter documents by title", example = "Rosario"),
+    skip: Optional[int] = Query(0, ge = 0, description = "Number of results to skip for pagination", example = 0),
+    top: Optional[int] = Query(500, ge = 1, le = 1000, description = "Maximum number of results to return", example = 10)
 ) -> Dict[str, Any]:
     """
     Retrieve documents by path (resolutions, ordinances, executive-orders) with optional filtering.
@@ -165,13 +197,44 @@ async def get_data(
 @app.get(
     "/bids-and-awards/{category}",
     summary = "Get bids and awards documents by category",
-    response_description = "List of bids and awards documents with pagination metadata"
+    response_description = "List of bids and awards documents with pagination metadata",
+    responses = {
+        200: {
+            "description": "Successful response",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "num_results": 2,
+                        "skip": 0,
+                        "top": 500,
+                        "returned_results": 2,
+                        "last_updated": "2025-11-12T14:30:45.123456+08:00",
+                        "category": "notice-of-awards",
+                        "results": [
+                            {
+                                "title": "Notice of Award - Rosario Bridge Construction Project",
+                                "link": "https://assets.pasigcity.gov.ph/storage/noa/award123.pdf",
+                                "uuid": "noa123-abc456-def789",
+                                "views": "89"
+                            },
+                            {
+                                "title": "NOA for Rosario Community Center Renovation",
+                                "link": "https://assets.pasigcity.gov.ph/storage/noa/award456.pdf",
+                                "uuid": "noa456-xyz789-uvw123",
+                                "views": "62"
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
 )
 async def get_bids_and_awards(
-    category: str = Path(..., description = "Category of bids/awards document"),
-    query: Optional[str] = Query(None, description = "Search query to filter documents by title"),
-    skip: int = Query(0, ge = 0, description = "Number of results to skip for pagination"),
-    top: int = Query(500, ge = 1, le = 1000, description = "Maximum number of results to return")
+    category: str = Path(..., description = "Category of bids/awards document", example = "notice-of-awards"),
+    query: Optional[str] = Query(None, description = "Search query to filter documents by title", example = "Rosario"),
+    skip: Optional[int] = Query(0, ge = 0, description = "Number of results to skip for pagination", example = 0),
+    top: Optional[int] = Query(500, ge = 1, le = 1000, description = "Maximum number of results to return", example = 10)
 ) -> Dict[str, Any]:
     """
     Retrieve bids and awards documents by category with optional filtering.
@@ -258,9 +321,3 @@ async def get_bids_and_awards(
         "category": category,
         "results": paginated_results,
     }
-
-
-# Run the server if this script is executed directly
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host = "0.0.0.0", port = 8000)
