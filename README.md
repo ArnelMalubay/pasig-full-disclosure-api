@@ -2,4 +2,4 @@
 A free-to-use API to get data on Pasig City's ordinances, resolutions, etc.
 
 # TO DO:
-- use async and depends
+- dockerize and deploy
