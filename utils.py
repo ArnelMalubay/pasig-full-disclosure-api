@@ -20,7 +20,7 @@ from vercel_blob import VercelBlob
 
 # Initialize KV + Blob clients
 kv = Redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
-blob = VercelBlob(token=os.environ["BLOB_READ_WRITE_TOKEN"])
+blob = VercelBlob(token = os.environ["BLOB_READ_WRITE_TOKEN"])
 
 
 # Mapping of data paths to their corresponding URLs on the Pasig City website
