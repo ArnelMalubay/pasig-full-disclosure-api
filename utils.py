@@ -2,157 +2,162 @@
 Utility functions for the Pasig Full Disclosure API.
 
 This module provides functions for fetching, caching, and managing HTML data
-from the Pasig City government website. All timestamps use UTC+8 (Philippine Time).
+from the Pasig City government website. HTML content is stored in Vercel Blob,
+while timestamp metadata is stored in Vercel KV (Redis). All timestamps use UTC+8.
 """
 
 import requests
 import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
+
+# Vercel KV (Redis) client
 from redis import Redis
 
+# Vercel Blob client
+from vercel_blob import VercelBlob
 
-# Connect to Vercel KV
-kv = Redis.from_url(os.environ["REDIS_URL"], decode_responses = True)
+
+# Initialize KV + Blob clients
+kv = Redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+blob = VercelBlob(token=os.environ["BLOB_READ_WRITE_TOKEN"])
+
 
 # Mapping of data paths to their corresponding URLs on the Pasig City website
 path_to_url: Dict[str, str] = {
-    "resolutions": "https://pasigcity.gov.ph/city-resolutions", 
-    "ordinances": "https://pasigcity.gov.ph/city-ordinances", 
-    "executive-orders": "https://pasigcity.gov.ph/executive-orders", 
-    "bids-and-awards": "https://pasigcity.gov.ph/bids-and-awards"
+    "resolutions": "https://pasigcity.gov.ph/city-resolutions",
+    "ordinances": "https://pasigcity.gov.ph/city-ordinances",
+    "executive-orders": "https://pasigcity.gov.ph/executive-orders",
+    "bids-and-awards": "https://pasigcity.gov.ph/bids-and-awards",
 }
 
 
 def refresh_html(path: str) -> None:
     """
-    Fetch HTML content from the Pasig City website and save it to a Redis instance.
-    
+    Fetch HTML content from the Pasig City website and store it in Vercel Blob.
+
     Args:
-        path: The data path (e.g., 'resolutions', 'ordinances', 'executive-orders', 'bids-and-awards').
+        path: The data path (e.g. 'resolutions', 'ordinances', etc.).
               Must be a key in the path_to_url dictionary.
-    
+
     Returns:
         None
-    
+
     Side Effects:
-        - Creates the 'htmls' directory if it doesn't exist
-        - Creates or overwrites the file 'htmls/{path}.html' with fetched content
+        - Uploads or overwrites `html/{path}.html` in Vercel Blob storage.
     """
     url = path_to_url[path]
     html = requests.get(url)
-    
-    # Store HTML in KV
-    kv.set(f"html:{path}", html.text)
+
+    # Upload HTML to Blob (stored as html/resolutions.html, etc.)
+    blob.put(
+        path=f"html/{path}.html",
+        data=html.text.encode("utf-8"),
+        content_type="text/html",
+    )
 
 
 def update_time(path: str) -> None:
     """
     Update the last refresh timestamp for a specific data path in UTC+8.
-    
-    This function updates the timestamp for the specified path with the current time.
-    
+
+    This function stores the timestamp for the given path in Vercel KV.
+
     Args:
-        path: The data path to update (e.g., 'resolutions', 'ordinances').
-    
+        path: The data path to update.
+
     Returns:
         None
-    
+
     Side Effects:
-        - Updates the timestamp for the specified path in the Redis instance
+        - Updates the timestamp in Redis KV.
     """
-    # Use UTC+8 timezone (Philippine Time)
-    utc_plus_8 = timezone(timedelta(hours = 8))
+    utc_plus_8 = timezone(timedelta(hours=8))
     current_time = datetime.now(utc_plus_8).isoformat()
-    
-    # Store timestamp in KV
+
     kv.set(f"time:{path}", current_time)
 
 
 def get_time(path: str) -> Optional[str]:
     """
-    Retrieve the last refresh timestamp for a specific data path.
-    
+    Retrieve the last refresh timestamp for a specific data path from Vercel KV.
+
     Args:
-        path: The data path to look up (e.g., 'resolutions', 'ordinances').
-    
+        path: The data path to look up.
+
     Returns:
-        The ISO-format timestamp string in UTC+8 if found, None otherwise.
-    
-    Example:
-        >>> get_time("resolutions")
-        '2025-11-05T17:29:40.443171+08:00'
+        ISO-format timestamp string, or None if not found.
     """
     return kv.get(f"time:{path}")
 
 
-def update_if_needed(path: str, refresh_timer: timedelta = timedelta(days = 1)) -> None:
+def get_html(path: str) -> Optional[str]:
     """
-    Refresh HTML content if the cached version is outdated. Uses Redis to store the timestamp.
-    
-    This function checks the last update timestamp for the specified path and
-    refreshes the HTML content if the time elapsed since the last update is
-    greater than or equal to the refresh_timer. If no timestamp exists, it
-    refreshes immediately.
-    
+    Retrieve cached HTML content from Vercel Blob.
+
     Args:
-        path: The data path to check and potentially refresh.
-        refresh_timer: The minimum time between refreshes (default: 1 day).
-    
+        path: The data path (e.g. 'resolutions').
+
+    Returns:
+        The HTML content as a string, or None if the file does not exist.
+    """
+    try:
+        file = blob.get(f"html/{path}.html")
+        return file.read().decode("utf-8")
+    except Exception:
+        return None  # File does not exist in Blob
+
+
+def update_if_needed(path: str, refresh_timer: timedelta = timedelta(days=1)) -> None:
+    """
+    Refresh HTML content if the cached version is outdated. Uses Blob for HTML
+    and KV for timestamps.
+
+    This function checks the timestamp stored in KV and refreshes the cached
+    HTML if it is older than `refresh_timer`. If no timestamp exists, a refresh
+    is performed immediately.
+
+    Args:
+        path: The data path to validate.
+        refresh_timer: Minimum time between refreshes (default: 1 day).
+
     Returns:
         None
-    
+
     Side Effects:
-        - May fetch new HTML content and update the Redis instance
-        - May update the timestamp in the Redis instance
-    
-    Example:
-        >>> # Refresh if older than 1 day (default)
-        >>> update_if_needed("resolutions")
-        >>> 
-        >>> # Refresh if older than 12 hours
-        >>> update_if_needed("ordinances", refresh_timer = timedelta(hours = 12))
+        - May fetch new HTML content and upload it to Blob.
+        - May update the timestamp in KV.
     """
-    # Get the last updated time for the path
     last_updated_str = get_time(path)
-    
-    # If no record exists, refresh immediately
+
+    # No prior record → refresh immediately
     if last_updated_str is None:
         refresh_html(path)
         update_time(path)
         return
-    
-    # Parse the last updated time
+
+    # Parse stored timestamp
     last_updated = datetime.fromisoformat(last_updated_str)
-    
-    # Get current time in UTC+8
-    utc_plus_8 = timezone(timedelta(hours = 8))
+
+    # Current time in UTC+8
+    utc_plus_8 = timezone(timedelta(hours=8))
     current_time = datetime.now(utc_plus_8)
-    
-    # Check if refresh is needed
-    time_difference = current_time - last_updated
-    
-    if time_difference >= refresh_timer:
+
+    # Determine if refresh is needed
+    if current_time - last_updated >= refresh_timer:
         refresh_html(path)
         update_time(path)
+
     return
 
 
 def get_current_year() -> int:
     """
-    Get the current year in UTC+8 (Philippine Time).
-    
-    This ensures the year is always calculated based on Philippine Time,
-    regardless of the server's local timezone.
-    
+    Get the current year in UTC+8 (Philippine time), regardless of server location.
+
     Returns:
         The current year as an integer.
-    
-    Example:
-        >>> get_current_year()
-        2025
     """
-    # Use UTC+8 timezone (Philippine Time)
-    utc_plus_8 = timezone(timedelta(hours = 8))
+    utc_plus_8 = timezone(timedelta(hours=8))
     current_time = datetime.now(utc_plus_8)
     return current_time.year
