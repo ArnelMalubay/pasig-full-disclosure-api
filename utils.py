@@ -15,12 +15,12 @@ from typing import Optional, Dict
 from redis import Redis
 
 # Vercel Blob client
-from vercel_blob import VercelBlob
+from vercel_blob import Blob
 
 
 # Initialize KV + Blob clients
-kv = Redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
-blob = VercelBlob(token = os.environ["BLOB_READ_WRITE_TOKEN"])
+kv = Redis.from_url(os.getenv["REDIS_URL"], decode_responses=True)
+blob = Blob(token = os.getenv["BLOB_READ_WRITE_TOKEN"])
 
 
 # Mapping of data paths to their corresponding URLs on the Pasig City website
