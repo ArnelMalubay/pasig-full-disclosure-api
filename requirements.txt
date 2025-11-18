@@ -2,5 +2,3 @@ beautifulsoup4==4.14.2
 lxml==6.0.2
 requests==2.32.5
 fastapi[standard]==0.121.1
-redis==7.0.1
-vercel_blob==0.4.2
