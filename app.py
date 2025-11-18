@@ -123,18 +123,21 @@ async def get_data(
             detail = "start_year cannot be greater than end_year"
         )
     
-    # Check if HTML file exists
-    html_file = f"htmls/{path}.html"
-    if not os.path.exists(html_file):
-        raise HTTPException(
-            status_code = 503,
-            detail = f"Data for '{path}' is not yet available. Please try again later."
-        )
-    
+    # Try to update if needed (this will create files if they don't exist)
+    html_file = f"data/{path}.html"
     try:
         update_if_needed(path)
+        # Verify file exists after update attempt
+        if not os.path.exists(html_file):
+            raise HTTPException(
+                status_code = 503,
+                detail = f"Data for '{path}' could not be fetched. Please try again later."
+            )
         with open(html_file, "r", encoding = "utf-8") as f:
             soup = BeautifulSoup(f, "lxml")
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         raise HTTPException(
             status_code = 500,
@@ -249,18 +252,21 @@ async def get_bids_and_awards(
             detail = f"Category '{category}' not found. Valid categories: {', '.join(path_to_title.keys())}"
         )
     
-    # Check if HTML file exists
-    html_file = "htmls/bids-and-awards.html"
-    if not os.path.exists(html_file):
-        raise HTTPException(
-            status_code = 503,
-            detail = "Bids and awards data is not yet available. Please try again later."
-        )
-    
+    # Try to update if needed (this will create files if they don't exist)
+    html_file = "data/bids-and-awards.html"
     try:
         update_if_needed("bids-and-awards")
+        # Verify file exists after update attempt
+        if not os.path.exists(html_file):
+            raise HTTPException(
+                status_code = 503,
+                detail = "Bids and awards data could not be fetched. Please try again later."
+            )
         with open(html_file, "r", encoding = "utf-8") as f:
             soup = BeautifulSoup(f, "lxml")
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
         raise HTTPException(
             status_code = 500,

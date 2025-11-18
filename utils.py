@@ -32,17 +32,17 @@ def refresh_html(path: str) -> None:
         None
     
     Side Effects:
-        - Creates the 'htmls' directory if it doesn't exist
-        - Creates or overwrites the file 'htmls/{path}.html' with fetched content
+        - Creates the 'data' directory if it doesn't exist
+        - Creates or overwrites the file 'data/{path}.html' with fetched content
     """
     url = path_to_url[path]
     html = requests.get(url)
     
-    # Create htmls folder if it doesn't exist
-    os.makedirs("htmls", exist_ok = True)
+    # Create data folder if it doesn't exist
+    os.makedirs("data", exist_ok = True)
     
     # Write the HTML content to file (creates new or replaces existing)
-    filename = os.path.join("htmls", f"{path}.html")
+    filename = os.path.join("data", f"{path}.html")
     with open(filename, "w", encoding = "utf-8") as f:
         f.write(html.text)
 
@@ -51,9 +51,9 @@ def update_time(path: str) -> None:
     """
     Update the last refresh timestamp for a specific data path in UTC+8.
     
-    This function reads the existing timestamps from 'last_updated.txt', updates
+    This function reads the existing timestamps from 'data/last_updated.txt', updates
     the timestamp for the specified path with the current time, and writes all
-    timestamps back to the file.
+    timestamps back to the file. Creates the file and directory if they don't exist.
     
     Args:
         path: The data path to update (e.g., 'resolutions', 'ordinances').
@@ -62,17 +62,22 @@ def update_time(path: str) -> None:
         None
     
     Side Effects:
-        - Creates or updates 'last_updated.txt' with the current timestamp
+        - Creates the 'data' directory if it doesn't exist
+        - Creates or updates 'data/last_updated.txt' with the current timestamp
         - Preserves timestamps for other paths in the file
     """
+    # Ensure data directory exists
+    os.makedirs("data", exist_ok = True)
+    
     # Use UTC+8 timezone (Philippine Time)
     utc_plus_8 = timezone(timedelta(hours = 8))
     current_time = datetime.now(utc_plus_8).isoformat()
     
     # Read existing times
     times = {}
-    if os.path.exists("last_updated.txt"):
-        with open("last_updated.txt", "r", encoding = "utf-8") as f:
+    last_updated_file = "data/last_updated.txt"
+    if os.path.exists(last_updated_file):
+        with open(last_updated_file, "r", encoding = "utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line and ":" in line:
@@ -82,8 +87,8 @@ def update_time(path: str) -> None:
     # Update the time for the given path
     times[path] = current_time
     
-    # Write all times back to file
-    with open("last_updated.txt", "w", encoding = "utf-8") as f:
+    # Write all times back to file (creates file if it doesn't exist)
+    with open(last_updated_file, "w", encoding = "utf-8") as f:
         for key, value in times.items():
             f.write(f"{key}: {value}\n")
 
@@ -97,18 +102,31 @@ def get_time(path: str) -> Optional[str]:
     
     Returns:
         The ISO-format timestamp string in UTC+8 if found, None otherwise.
+        Returns None if the file doesn't exist or the path is not found.
     
     Example:
         >>> get_time("resolutions")
         '2025-11-05T17:29:40.443171+08:00'
     """
-    with open("last_updated.txt", "r", encoding = "utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line and ":" in line:
-                key, value = line.split(":", 1)
-                if key.strip() == path:
-                    return value.strip()
+    last_updated_file = "data/last_updated.txt"
+    
+    # Return None if file doesn't exist (app can rebuild from scratch)
+    if not os.path.exists(last_updated_file):
+        return None
+    
+    # Read the file and search for the path
+    try:
+        with open(last_updated_file, "r", encoding = "utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and ":" in line:
+                    key, value = line.split(":", 1)
+                    if key.strip() == path:
+                        return value.strip()
+    except (IOError, OSError):
+        # Handle any file reading errors gracefully
+        return None
+    
     return None
 
 
@@ -130,7 +148,8 @@ def update_if_needed(path: str, refresh_timer: timedelta = timedelta(days = 1)) 
     
     Side Effects:
         - May fetch new HTML content and update the local cache
-        - May update the timestamp in 'last_updated.txt'
+        - May update the timestamp in 'data/last_updated.txt'
+        - Creates the 'data' directory if it doesn't exist
     
     Example:
         >>> # Refresh if older than 1 day (default)
@@ -139,6 +158,9 @@ def update_if_needed(path: str, refresh_timer: timedelta = timedelta(days = 1)) 
         >>> # Refresh if older than 12 hours
         >>> update_if_needed("ordinances", refresh_timer = timedelta(hours = 12))
     """
+    # Ensure data directory exists (app can rebuild from scratch)
+    os.makedirs("data", exist_ok = True)
+    
     # Get the last updated time for the path
     last_updated_str = get_time(path)
     
